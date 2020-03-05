@@ -1,0 +1,154 @@
+int count;
+int press;
+double SL = 6.7;   //left right distance from tracking center to tracking wheels.
+double SR = 6.7;
+double SS = 6; //forward backward distance from tracking center to back tracking wheel.
+
+float PreviousAbsTheta=0; // absolute orientation from previous loop.
+float NewAbsOrientaion; // new absolute orientation.
+float DeltaTheta; // difference between thetas of each loop.
+float LeftEncoderRotation, RightEncoderRotation,StrafeEncoderRotation = 0, SrotPrev = 0, LrotPrev = 0, RrotPrev = 0;
+float DLcurrent, DRcurrent, DScurrent, DLprevious, DRprevious, DSprevious, DeltaLeftInches , DeltaRightInches , DeltaStrafeInches  ; // change in each encoder value of each tracking wheel since last cycle as inches
+float DLr, DRr,DSr ; //change in each encoder value as degrees
+double localOffsetX, localOffsetY;
+float GlobalOrientation=0; //global theta, ultimate orientation of the robot.
+float AvgTheta; // average orientation.
+float xl,yl; //cartesian coordinates for this loop
+float x, y;
+double r; //this is just the hypotenuse made by xl and xy
+double q; // q=r^
+float LIMIT;
+double PrevGlobalOrientation=0;
+
+
+    
+void PositionTracking(void)
+{    
+   {  
+       LeftEncoderRotation = LeftBack.rotation(rotationUnits::deg);   //collecting current encoder values
+       RightEncoderRotation = RightBack.rotation(rotationUnits::deg);
+       StrafeEncoderRotation = 0;
+       
+       DLr = LeftEncoderRotation - LrotPrev;
+       DRr = RightEncoderRotation - RrotPrev; //Difference between encoder values in rotationUnits degrees
+       DSr = StrafeEncoderRotation - SrotPrev; //since last loop
+           
+       DLcurrent = (DLr/360) * (12.959);
+       DRcurrent = (DRr/360) * (12.959); //The difference between encoder values since last loop
+       DScurrent = (DSr/360) * (12.959); // converted to inches.
+       
+       //DeltaLeftInches = DLcurrent - DLprevious;
+       //DeltaRightInches = DRcurrent - DRprevious;  //Distance in inches each wheel has turned since last loop.
+       //DeltaStrafeInches = DScurrent - DSprevious;
+       
+      // NewAbsOrientaion = GlobalOrientation + ((DLr-DRr)/(SL)); //orientation of robot in this loop.
+       
+       DeltaTheta = (DLr-DRr)/(SL); //RADIANS difference between orientation of robot between this loop and last loop.
+  
+       GlobalOrientation = GlobalOrientation +DeltaTheta; //updating global orientation of robot.
+       //PreviousAbsTheta=NewAbsOrientaion;
+          double i = DeltaTheta / 2;
+            if(DeltaTheta==0)
+            {localOffsetX = DScurrent;
+             localOffsetY = DRcurrent;}       
+            if(DeltaTheta!=0)
+            {localOffsetY = (((DRcurrent / DeltaTheta) + SR) * sin(i)) * 2.0;
+localOffsetX = (((DScurrent / DeltaTheta) + SS) * sin(i)) * 2.0;
+                /*localOffsetX = 2*sin(GlobalOrientation/2)*(DScurrent/DeltaTheta + SS);//Creating local offset X and Y Cordinates
+             localOffsetY = 2*sin(GlobalOrientation/2)*(DRcurrent/DeltaTheta + SR);*/}//from our Delta Theta. 
+       
+       AvgTheta = PrevGlobalOrientation + (DeltaTheta/2); // average orientation of robot in maneuver.
+       r = sqrt(((localOffsetX)*(localOffsetX))+((localOffsetY)*(localOffsetY)));//calculate the length of hypotenuse made by xl and yl.
+       
+       xl = r * (cos(DeltaTheta+AvgTheta) ); //Here we convert the cartesian coordinates to polar coordinates,
+       yl = r * (sin(DeltaTheta+AvgTheta) ); //then rotate those polar coordinates by our Tm. Then we can convert back to cartesian coordinates
+      double a = AvgTheta;
+        x += localOffsetX * cos(-a) + localOffsetY * sin(a);
+        y += localOffsetX * sin(-a) + localOffsetY * cos(a);
+      // x = x + xl;  //updating global xy coordinates
+       //y = y + yl;
+       
+       DLprevious =  DLcurrent;
+       DRprevious =  DRcurrent;  //Reassigning current distance each wheel has traveled
+       DSprevious =  DScurrent;  //in inches as past values for the next loop.
+       
+      LrotPrev = LeftEncoderRotation;
+      RrotPrev = RightEncoderRotation;  //Reassigning current encoder values of each wheel as
+      SrotPrev = StrafeEncoderRotation;  //past value for the next loop.
+      PrevGlobalOrientation= GlobalOrientation;
+    Brain.Screen.clearScreen();
+    Brain.Screen.printAt(5,20,"X = %f",x);
+    Brain.Screen.printAt(5,50,"Y = %f",y);
+    Brain.Screen.printAt(5,80,"GlobalTheta = %f",GlobalOrientation);  
+    Brain.Screen.printAt(5,110,"NewAbsTheta = %f",NewAbsOrientaion);  
+    Brain.Screen.printAt(5,140,"DeltaTheta = %f",DeltaTheta);  
+    Brain.Screen.printAt(5,170,"AvgTheta = %f",AvgTheta); 
+    Brain.Screen.printAt(5,200,"LocalOffsetY = %f",localOffsetY);  
+    Brain.Screen.printAt(5,230,"LocalOffsetX = %f",localOffsetX);
+       task::sleep(5);
+   }
+   
+} 
+   
+
+ 
+double circumference = 12.9; // circumference of wheel in inches
+double rotateDegree;
+double turningCircumference = 43.7;
+
+void moveForInch(double target,double speed) {
+    rotateDegree = (360*target)/circumference ;
+   LeftFront.setVelocity(speed,vex::velocityUnits::rpm);
+  RightFront.setVelocity(speed,vex::velocityUnits::rpm);
+  LeftBack.setVelocity(speed,vex::velocityUnits::rpm);
+  RightBack.setVelocity(speed,vex::velocityUnits::rpm);
+
+    LeftFront.rotateFor(rotateDegree, vex::rotationUnits::deg, false);  
+    LeftBack.rotateFor(rotateDegree, vex::rotationUnits::deg, false);
+    RightFront.rotateFor(rotateDegree, vex::rotationUnits::deg,false);
+    RightBack.rotateFor(rotateDegree, vex::rotationUnits::deg);
+ 
+   
+}
+
+void turnForDegrees(double degrees){
+   
+    double  rotateinch = ((degrees/360)*(turningCircumference)) ;
+    double leftRotateDegree = ((-1)*(360*rotateinch)/circumference );
+    double rotateDegree = ((360*rotateinch)/circumference);
+
+    LeftFront.setVelocity(80,vex::velocityUnits::rpm);
+    RightFront.setVelocity(80,vex::velocityUnits::rpm);
+    LeftBack.setVelocity(80,vex::velocityUnits::rpm);
+    RightBack.setVelocity(80,vex::velocityUnits::rpm);
+    LeftFront.rotateFor(leftRotateDegree, vex::rotationUnits::deg, false);
+    LeftBack.rotateFor(leftRotateDegree, vex::rotationUnits::deg, false);
+    RightFront.rotateFor(rotateDegree, vex::rotationUnits::deg,false);
+    RightBack.rotateFor(rotateDegree, vex::rotationUnits::deg);
+}
+int leftRotateDegree;
+void turnForInch(double target) 
+{
+    rotateDegree = (360*target)/circumference ;
+    leftRotateDegree = ((-1)*(360*target)/circumference);
+    LeftFront.rotateFor(leftRotateDegree, vex::rotationUnits::deg, false);
+    LeftBack.rotateFor(leftRotateDegree, vex::rotationUnits::deg, false);
+    RightBack.rotateFor(rotateDegree, vex::rotationUnits::deg,false);
+    RightFront.rotateFor(rotateDegree, vex::rotationUnits::deg);
+} 
+void moveLeftForInch(float target) {
+              rotateDegree = (360*target)/circumference ;
+              LeftFront.rotateFor(rotateDegree, vex::rotationUnits::deg, false);
+              LeftBack.rotateFor(rotateDegree, vex::rotationUnits::deg); }
+void moveRightForInch(float target) {
+              rotateDegree = (360*target)/circumference ;
+              RightFront.rotateFor(rotateDegree, vex::rotationUnits::deg, false);
+              RightBack.rotateFor(rotateDegree, vex::rotationUnits::deg);
+        }
+
+void speed(double target){
+  LeftFront.setVelocity(target,vex::velocityUnits::rpm);
+  RightFront.setVelocity(target,vex::velocityUnits::rpm);
+  LeftBack.setVelocity(target,vex::velocityUnits::rpm);
+  RightBack.setVelocity(target,vex::velocityUnits::rpm);
+}
